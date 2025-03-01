@@ -89,3 +89,43 @@ async def receive_analytics(request: Request):
                 "error": str(e),
             },
         )
+
+
+@app.get("/analytics")
+async def get_analytics():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM analytics")
+        rows = cursor.fetchall()
+        conn.close()
+
+        # Convert rows to list of dictionaries
+        analytics_data = [
+            {
+                "id": row[0],
+                "event": row[1],
+                "timestamp": row[2],
+                "device": row[3],
+                "app_version": row[4],
+                "module_name": row[5],
+                "module_version": row[6],
+                "data": json.loads(row[7]) if row[7] else {}
+            }
+            for row in rows
+        ]
+
+        return JSONResponse(
+            status_code=200,
+            content=analytics_data
+        )
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": "Failed to retrieve analytics data",
+                "error": str(e),
+            },
+        )
