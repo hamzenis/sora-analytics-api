@@ -1,0 +1,12 @@
+[Unit]
+Description=FASTApi Sora Analytics
+After=network.target
+
+[Service]
+User=hamzo
+WorkingDirectory=/home/hamzo/sora-analytics
+ExecStart=/home/hamzo/sora-analytics/.venv/bin/uvicorn api:app --host 0.0.0.0 --port 8080
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
