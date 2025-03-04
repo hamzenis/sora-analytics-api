@@ -96,7 +96,7 @@ async def get_analytics():
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM analytics")
+        cursor.execute("SELECT * FROM analytics ORDER BY timestamp DESC")
         rows = cursor.fetchall()
         conn.close()
 
