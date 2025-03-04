@@ -1,11 +1,11 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 import sqlite3
 import json
 from datetime import datetime, timezone
 
 app = FastAPI()
-DB_PATH = "analytics.db"
+DB_PATH = "./analytics.db"
 
 
 # Initialize database
@@ -31,6 +31,34 @@ def init_db():
 
 
 init_db()
+
+
+@app.get("/", response_class=HTMLResponse)
+async def index():
+    return """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Sora Analytics API</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; }
+            h1 { color: #333; }
+            p { font-size: 1.2em; }
+            a { color: #007bff; text-decoration: none; }
+            a:hover { text-decoration: underline; }
+        </style>
+    </head>
+    <body>
+        <h1>Welcome to the Sora Analytics API</h1>
+        <p>Please visit <a href="/docs">/docs</a> for API documentation.</p>
+        <p>For more information, please visit the <a href="https://github.com/hamzenis/sora-analytics-api">GitHub repository</a>.</p>
+        <p>Analytics API: <a href="http://151.106.3.14:47474/analytics">http://151.106.3.14:47474/analytics</a></p>
+        <p>Analytics API (HTML): <a href="http://151.106.3.14:47474/analytics?format=html">http://151.106.3.14:47474/analytics?format=html</a></p>
+    </body>
+    </html>
+    """
 
 
 @app.post("/analytics")
@@ -92,11 +120,36 @@ async def receive_analytics(request: Request):
 
 
 @app.get("/analytics")
-async def get_analytics():
+async def get_analytics(format: str = "json", filter: str = None, search: str = None):
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM analytics ORDER BY timestamp DESC")
+        
+        query = "SELECT * FROM analytics"
+        conditions = []
+        params = []
+
+        if filter == "errors":
+            conditions.append("event LIKE ?")
+            params.append("%error%")
+        elif filter == "watch":
+            conditions.append("event LIKE ?")
+            params.append("%watch%")
+        elif filter == "search":
+            conditions.append("event LIKE ?")
+            params.append("%search%")
+        
+        if search:
+            conditions.append("(event LIKE ? OR device LIKE ? OR app_version LIKE ? OR module_name LIKE ? OR module_version LIKE ? OR data LIKE ?)")
+            search_param = f"%{search}%"
+            params.extend([search_param] * 6)
+        
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        
+        query += " ORDER BY timestamp DESC"
+        
+        cursor.execute(query, params)
         rows = cursor.fetchall()
         conn.close()
 
@@ -114,6 +167,71 @@ async def get_analytics():
             }
             for row in rows
         ]
+
+        if format == "html":
+            # Generate HTML table
+            html_content = """
+            <html>
+            <head>
+                <title>Analytics Data</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 40px; }
+                    table { width: 100%; border-collapse: collapse; }
+                    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+                    th { background-color: #f2f2f2; }
+                    tr:nth-child(even) { background-color: #f9f9f9; }
+                    tr:hover { background-color: #ddd; }
+                    .button { padding: 10px 20px; margin: 5px; text-decoration: none; color: white; background-color: #007bff; border: none; border-radius: 5px; cursor: pointer; }
+                    .button:hover { background-color: #0056b3; }
+                </style>
+            </head>
+            <body>
+                <h1>Analytics Data</h1>
+                <div>
+                    <button class="button" onclick="window.location.href='/analytics?format=html&filter=errors'">Filter Errors</button>
+                    <button class="button" onclick="window.location.href='/analytics?format=html&filter=watch'">Filter Watch</button>
+                    <button class="button" onclick="window.location.href='/analytics?format=html&filter=search'">Filter Search</button>
+                    <input type="text" id="searchField" placeholder="Search...">
+                    <button class="button" onclick="searchAnalytics()">Search</button>
+                </div>
+                <script>
+                    function searchAnalytics() {
+                        const searchValue = document.getElementById('searchField').value;
+                        window.location.href = `/analytics?format=html&search=${searchValue}`;
+                    }
+                </script>
+                <table>
+                    <tr>
+                        <th>ID</th>
+                        <th>Event</th>
+                        <th>Timestamp</th>
+                        <th>Device</th>
+                        <th>App Version</th>
+                        <th>Module Name</th>
+                        <th>Module Version</th>
+                        <th>Data</th>
+                    </tr>
+            """
+            for data in analytics_data:
+                row_color = "#FFCCCC" if "error" in data['event'].lower() else "#FFFFFF"
+                html_content += f"""
+                    <tr style="background-color: {row_color};">
+                        <td style="text-align: center;">{data['id']}</td>
+                        <td style="text-align: center;">{data['event']}</td>
+                        <td style="text-align: center;">{datetime.fromisoformat(data['timestamp']).strftime('%Y-%m-%d %H:%M:%S')}</td>
+                        <td style="text-align: center;">{data['device']}</td>
+                        <td style="text-align: center;">{data['app_version']}</td>
+                        <td style="text-align: center;">{data['module_name']}</td>
+                        <td style="text-align: center;">{data['module_version']}</td>
+                        <td style="text-align: center;">{json.dumps(data['data'])}</td>
+                    </tr>
+                """
+            html_content += """
+                </table>
+            </body>
+            </html>
+            """
+            return HTMLResponse(content=html_content)
 
         return JSONResponse(
             status_code=200,
