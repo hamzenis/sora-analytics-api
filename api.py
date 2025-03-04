@@ -191,6 +191,7 @@ async def get_analytics(format: str = "json", filter: str = None, search: str = 
                     <button class="button" onclick="window.location.href='/analytics?format=html&filter=errors'">Filter Errors</button>
                     <button class="button" onclick="window.location.href='/analytics?format=html&filter=watch'">Filter Watch</button>
                     <button class="button" onclick="window.location.href='/analytics?format=html&filter=search'">Filter Search</button>
+                    <button class="button" onclick="window.location.href='/analytics?format=html'">Clear Filters/Search</button>
                     <input type="text" id="searchField" placeholder="Search...">
                     <button class="button" onclick="searchAnalytics()">Search</button>
                 </div>
